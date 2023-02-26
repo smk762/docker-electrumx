@@ -1,0 +1,61 @@
+FROM ubuntu:20.04
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+ARG ELECTRUMX_TCP_PORT=50000
+ARG ELECTRUMX_SSL_PORT=51000
+ARG ELECTRUMX_WSS_PORT=52000
+ARG ELECTRUMX_RPC_PORT=53000
+ARG KMD_RPCPORT=7000
+ARG KMD_RPCUSER=rpc_username
+ARG KMD_RPCPASS=rpc_password
+ARG KMD_RPCIP=chains
+
+ENV ELECTRUMX_TCP_PORT=${ELECTRUMX_TCP_PORT}
+ENV ELECTRUMX_SSL_PORT=${ELECTRUMX_SSL_PORT}
+ENV ELECTRUMX_WSS_PORT=${ELECTRUMX_WSS_PORT}
+ENV ELECTRUMX_RPC_PORT=${ELECTRUMX_RPC_PORT}
+ENV KMD_RPCPORT=${KMD_RPCPORT}
+ENV KMD_RPCUSER=${KMD_RPCUSER}
+ENV KMD_RPCPASS=${KMD_RPCPASS}
+ENV KMD_RPCIP=${KMD_RPCIP}
+
+VOLUME ["/data"]
+ENV COIN Komodo
+ENV HOME /data
+ENV ALLOW_ROOT 1
+ENV EVENT_LOOP_POLICY uvloop
+ENV DB_DIRECTORY /data
+ENV DAEMON_URL = "http://${KMD_RPCUSER}:${KMD_RPCPASS}@${KMD_RPCIP}:${KMD_RPCPORT}"
+ENV SERVICES=tcp://:${ELECTRUMX_TCP_PORT},ssl://:${ELECTRUMX_SSL_PORT},wss://:${ELECTRUMX_WSS_PORT},rpc://0.0.0.0:${ELECTRUMX_RPC_PORT}
+ENV SSL_CERTFILE ${DB_DIRECTORY}/electrumx.crt
+ENV SSL_KEYFILE ${DB_DIRECTORY}/electrumx.key
+ENV HOST ""
+ENV PEER_DISCOVERY self
+ENV MAX_SESSIONS 1000
+ENV MAX_SEND 2000000
+ENV INITIAL_CONCURRENT 50
+ENV COST_SOFT_LIMIT 0
+ENV COST_HARD_LIMIT 0
+ENV MAX_SEND 2000000
+ENV BANDWIDTH_UNIT_COST 10000
+
+
+COPY ./bin /usr/local/bin
+
+RUN apt-get update && apt-get install librocksdb-dev python3-pip python3-virtualenv python3-dev \ 
+ build-essential libsnappy-dev zlib1g-dev libbz2-dev libgflags-dev liblz4-dev libzstd-dev git cmake -y 
+
+RUN git clone https://github.com/facebook/rocksdb.git 
+RUN cd rocksdb && mkdir build && cd build && cmake .. && make 
+
+RUN cd .. && pip3 install Cython python-rocksdb aiohttp pylru plyvel websockets uvloop 
+
+RUN chmod +x /usr/local/bin/* && \
+    git clone -b master https://github.com/komodoplatform/electrumx-1 && \
+    cd electrumx-1 && python3 setup.py install
+
+
+WORKDIR /data
+
+CMD ["init"]
